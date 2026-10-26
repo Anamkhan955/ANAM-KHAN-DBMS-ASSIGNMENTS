@@ -1,0 +1,307 @@
+-- ============================================================
+-- DBMS Assignment 1 - SQL solutions (MySQL Client 8.0)
+-- Run with:  mysql -u root -p < dbms_assignment1.sql
+-- ============================================================
+CREATE DATABASE IF NOT EXISTS dbms_assignment1;
+USE dbms_assignment1;
+
+-- Clean start so the script can be re-run
+SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS employees, job_history, job_histry, dup_countries, countries, departments, jobs;
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- ------------------------------------------------------------
+-- Q1. Simple table countries
+-- ------------------------------------------------------------
+CREATE TABLE countries (
+    country_id   VARCHAR(2),
+    country_name VARCHAR(40),
+    region_id    DECIMAL(10,0)
+);
+
+-- ------------------------------------------------------------
+-- Q2. Same statement when the table already exists
+--     (IF NOT EXISTS -> no error, only a warning)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS countries (
+    country_id   VARCHAR(2),
+    country_name VARCHAR(40),
+    region_id    DECIMAL(10,0)
+);
+
+-- ------------------------------------------------------------
+-- Q3. Structure only of dup_countries (copy of countries)
+-- ------------------------------------------------------------
+CREATE TABLE dup_countries LIKE countries;
+
+-- ------------------------------------------------------------
+-- Q4. Duplicate copy with structure AND data
+-- ------------------------------------------------------------
+DROP TABLE dup_countries;
+CREATE TABLE dup_countries AS SELECT * FROM countries;
+
+-- ------------------------------------------------------------
+-- Q5. NOT NULL constraint
+-- ------------------------------------------------------------
+DROP TABLE countries;
+CREATE TABLE IF NOT EXISTS countries (
+    country_id   VARCHAR(2)    NOT NULL,
+    country_name VARCHAR(40)   NOT NULL,
+    region_id    DECIMAL(10,0) NOT NULL
+);
+
+-- ------------------------------------------------------------
+-- Q6. jobs table with CHECK: max_salary must not exceed 25000
+--     (CHECK is enforced from MySQL 8.0.16 onwards)
+-- ------------------------------------------------------------
+CREATE TABLE jobs (
+    job_id     VARCHAR(10) NOT NULL,
+    job_title  VARCHAR(35) NOT NULL,
+    min_salary DECIMAL(6,0),
+    max_salary DECIMAL(6,0),
+    CHECK (max_salary <= 25000)
+);
+
+-- ------------------------------------------------------------
+-- Q7. countries: only Italy, India and China allowed
+-- ------------------------------------------------------------
+DROP TABLE countries;
+CREATE TABLE IF NOT EXISTS countries (
+    country_id   VARCHAR(2),
+    country_name VARCHAR(40),
+    region_id    DECIMAL(10,0),
+    CHECK (country_name IN ('Italy', 'India', 'China'))
+);
+
+-- ------------------------------------------------------------
+-- Q8. job_histry: end_date must look like dd/mm/yyyy
+--     (stored as VARCHAR(10) so the '--/--/----' pattern is kept)
+-- ------------------------------------------------------------
+CREATE TABLE job_histry (
+    employee_id   DECIMAL(6,0) NOT NULL,
+    start_date    DATE         NOT NULL,
+    end_date      VARCHAR(10)  NOT NULL,
+    job_id        VARCHAR(10)  NOT NULL,
+    department_id DECIMAL(4,0) NOT NULL,
+    CHECK (end_date REGEXP '^[0-9]{2}/[0-9]{2}/[0-9]{4}$')
+);
+
+-- ------------------------------------------------------------
+-- Q9. No duplicate country_id (UNIQUE)
+-- ------------------------------------------------------------
+DROP TABLE countries;
+CREATE TABLE IF NOT EXISTS countries (
+    country_id   VARCHAR(2) NOT NULL UNIQUE,
+    country_name VARCHAR(40),
+    region_id    DECIMAL(10,0)
+);
+
+-- ------------------------------------------------------------
+-- Q10. jobs with DEFAULT values
+-- ------------------------------------------------------------
+DROP TABLE jobs;
+CREATE TABLE jobs (
+    job_id     VARCHAR(10) NOT NULL,
+    job_title  VARCHAR(35) NOT NULL DEFAULT ' ',
+    min_salary DECIMAL(6,0) DEFAULT 8000,
+    max_salary DECIMAL(6,0) DEFAULT NULL
+);
+
+-- ------------------------------------------------------------
+-- Q11. country_id as a key field (PRIMARY KEY)
+-- ------------------------------------------------------------
+DROP TABLE countries;
+CREATE TABLE IF NOT EXISTS countries (
+    country_id   VARCHAR(2) NOT NULL,
+    country_name VARCHAR(40),
+    region_id    DECIMAL(10,0),
+    PRIMARY KEY (country_id)
+);
+
+-- ------------------------------------------------------------
+-- Q12. country_id UNIQUE and AUTO_INCREMENT
+-- ------------------------------------------------------------
+DROP TABLE countries;
+CREATE TABLE IF NOT EXISTS countries (
+    country_id   INT NOT NULL AUTO_INCREMENT,
+    country_name VARCHAR(40),
+    region_id    DECIMAL(10,0),
+    UNIQUE KEY (country_id)
+);
+
+-- ------------------------------------------------------------
+-- Q13. Combination of country_id and region_id is UNIQUE
+-- ------------------------------------------------------------
+DROP TABLE countries;
+CREATE TABLE IF NOT EXISTS countries (
+    country_id   VARCHAR(2) NOT NULL,
+    country_name VARCHAR(40),
+    region_id    DECIMAL(10,0) NOT NULL,
+    UNIQUE KEY country_region_uq (country_id, region_id)
+);
+
+-- ------------------------------------------------------------
+-- Q14. job_history: employee_id unique, job_id FK -> jobs(job_id)
+--      (jobs as given: job_id VARCHAR(10) PRIMARY KEY)
+-- ------------------------------------------------------------
+DROP TABLE jobs;
+CREATE TABLE jobs (
+    job_id     VARCHAR(10)  NOT NULL DEFAULT '',
+    job_title  VARCHAR(35)  NOT NULL,
+    min_salary DECIMAL(6,0) DEFAULT NULL,
+    max_salary DECIMAL(6,0) DEFAULT NULL,
+    PRIMARY KEY (job_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE job_history (
+    employee_id   DECIMAL(6,0) NOT NULL,
+    start_date    DATE         NOT NULL,
+    end_date      DATE         NOT NULL,
+    job_id        VARCHAR(10)  NOT NULL,
+    department_id DECIMAL(4,0) NOT NULL,
+    UNIQUE KEY (employee_id),
+    FOREIGN KEY (job_id) REFERENCES jobs (job_id)
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- Q15. employees: composite FK (department_id, manager_id)
+--      -> departments(department_id, manager_id)
+-- ------------------------------------------------------------
+CREATE TABLE departments (
+    department_id   DECIMAL(4,0) NOT NULL DEFAULT 0,
+    department_name VARCHAR(30)  NOT NULL,
+    manager_id      DECIMAL(6,0) NOT NULL DEFAULT 0,
+    location_id     DECIMAL(4,0) DEFAULT NULL,
+    PRIMARY KEY (department_id, manager_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE employees (
+    employee_id   DECIMAL(6,0)  NOT NULL,
+    first_name    VARCHAR(20),
+    last_name     VARCHAR(25)   NOT NULL,
+    email         VARCHAR(25)   NOT NULL,
+    phone_number  VARCHAR(20),
+    hire_date     DATE          NOT NULL,
+    job_id        VARCHAR(10)   NOT NULL,
+    salary        DECIMAL(8,2),
+    commission    DECIMAL(2,2),
+    manager_id    DECIMAL(6,0)  NOT NULL,
+    department_id DECIMAL(4,0)  NOT NULL,
+    PRIMARY KEY (employee_id),
+    FOREIGN KEY (department_id, manager_id)
+        REFERENCES departments (department_id, manager_id)
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- Q16. employees with two FKs: department_id -> departments,
+--      job_id -> jobs (InnoDB)
+-- ------------------------------------------------------------
+DROP TABLE employees;
+DROP TABLE departments;
+
+CREATE TABLE departments (
+    department_id   DECIMAL(4,0) NOT NULL DEFAULT 0,
+    department_name VARCHAR(30)  NOT NULL,
+    manager_id      DECIMAL(6,0) DEFAULT NULL,
+    location_id     DECIMAL(4,0) DEFAULT NULL,
+    PRIMARY KEY (department_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE employees (
+    employee_id   DECIMAL(6,0)  NOT NULL,
+    first_name    VARCHAR(20),
+    last_name     VARCHAR(25)   NOT NULL,
+    email         VARCHAR(25)   NOT NULL,
+    phone_number  VARCHAR(20),
+    hire_date     DATE          NOT NULL,
+    job_id        VARCHAR(10)   NOT NULL,
+    salary        DECIMAL(8,2),
+    commission    DECIMAL(2,2),
+    manager_id    DECIMAL(6,0),
+    department_id DECIMAL(4,0),
+    PRIMARY KEY (employee_id),
+    FOREIGN KEY (department_id) REFERENCES departments (department_id),
+    FOREIGN KEY (job_id)        REFERENCES jobs (job_id)
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- Q17 - Q20 use this jobs table (job_id is INTEGER)
+-- ------------------------------------------------------------
+DROP TABLE employees;
+DROP TABLE job_history;
+DROP TABLE jobs;
+
+CREATE TABLE IF NOT EXISTS jobs (
+    JOB_ID     INTEGER      NOT NULL UNIQUE PRIMARY KEY,
+    JOB_TITLE  VARCHAR(35)  NOT NULL DEFAULT ' ',
+    MIN_SALARY DECIMAL(6,0) DEFAULT 8000,
+    MAX_SALARY DECIMAL(6,0) DEFAULT NULL
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- Q17. ON UPDATE CASCADE, ON DELETE RESTRICT
+-- ------------------------------------------------------------
+CREATE TABLE employees (
+    employee_id DECIMAL(6,0) NOT NULL,
+    first_name  VARCHAR(20),
+    last_name   VARCHAR(25)  NOT NULL,
+    job_id      INTEGER      NOT NULL,
+    salary      DECIMAL(8,2),
+    PRIMARY KEY (employee_id),
+    FOREIGN KEY (job_id) REFERENCES jobs (job_id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- Q18. ON DELETE CASCADE, ON UPDATE RESTRICT
+-- ------------------------------------------------------------
+DROP TABLE employees;
+CREATE TABLE employees (
+    employee_id DECIMAL(6,0) NOT NULL,
+    first_name  VARCHAR(20),
+    last_name   VARCHAR(25)  NOT NULL,
+    job_id      INTEGER      NOT NULL,
+    salary      DECIMAL(8,2),
+    PRIMARY KEY (employee_id),
+    FOREIGN KEY (job_id) REFERENCES jobs (job_id)
+        ON DELETE CASCADE
+        ON UPDATE RESTRICT
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- Q19. ON DELETE SET NULL, ON UPDATE SET NULL
+--      (job_id must therefore accept NULL)
+-- ------------------------------------------------------------
+DROP TABLE employees;
+CREATE TABLE employees (
+    employee_id DECIMAL(6,0) NOT NULL,
+    first_name  VARCHAR(20),
+    last_name   VARCHAR(25)  NOT NULL,
+    job_id      INTEGER      DEFAULT NULL,
+    salary      DECIMAL(8,2),
+    PRIMARY KEY (employee_id),
+    FOREIGN KEY (job_id) REFERENCES jobs (job_id)
+        ON DELETE SET NULL
+        ON UPDATE SET NULL
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
+-- Q20. ON DELETE NO ACTION, ON UPDATE NO ACTION
+-- ------------------------------------------------------------
+DROP TABLE employees;
+CREATE TABLE employees (
+    employee_id DECIMAL(6,0) NOT NULL,
+    first_name  VARCHAR(20),
+    last_name   VARCHAR(25)  NOT NULL,
+    job_id      INTEGER      NOT NULL,
+    salary      DECIMAL(8,2),
+    PRIMARY KEY (employee_id),
+    FOREIGN KEY (job_id) REFERENCES jobs (job_id)
+        ON DELETE NO ACTION
+        ON UPDATE NO ACTION
+) ENGINE=InnoDB;
+
+-- Check the final structure
+DESCRIBE employees;
+SHOW CREATE TABLE employees;
